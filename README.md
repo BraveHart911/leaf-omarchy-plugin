@@ -2,6 +2,8 @@
 
 Leaf is one Omarchy plugin for applications, workspaces, and system monitoring. It provides a bar button and workspace overlay through Omarchy Shell, plus a GTK4 window with Apps, System, Tools, and Settings. Settings opens fullscreen; F11 or the header control switches to a resizable window for tiling. The Apps page includes favorites, local file search, app groups, a pinned/running app bar, and monitor-aware workspaces. The System page reads local CPU, memory, GPU, thermal, storage, and network data where available.
 
+![Leaf showing applications and workspaces](preview.png)
+
 ## Install
 
 Requirements: Omarchy Shell, Hyprland, Python 3, GTK4/PyGObject, and cairo's Python bindings. The launcher reports missing dependencies. To install or update from this source directory:
