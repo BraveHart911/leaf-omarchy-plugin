@@ -1,0 +1,15 @@
+#!/bin/sh
+set -eu
+root=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
+if ! python3 -c 'import gi, cairo; gi.require_version("Gtk", "4.0"); from gi.repository import Gtk' 2>/dev/null; then
+  message="Leaf needs GTK 4, python-gobject and python-cairo. Install them with: omarchy pkg add gtk4 python-gobject python-cairo"
+  printf '%s\n' "$message" >&2
+  if command -v notify-send >/dev/null 2>&1; then
+    notify-send "Leaf could not start" "$message"
+  fi
+  exit 1
+fi
+if [ -n "${WAYLAND_DISPLAY:-}" ]; then
+  export GDK_BACKEND=wayland
+fi
+exec python3 "$root/leaf_control.py" "$@"
