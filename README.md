@@ -4,6 +4,8 @@ Leaf is one Omarchy plugin for applications, workspaces, and system monitoring. 
 
 ![Leaf showing applications and workspaces](preview.png)
 
+![Leaf showing system monitoring and drive status](system-preview.png)
+
 ## Install
 
 Requirements: Omarchy Shell, Hyprland, Python 3, GTK4/PyGObject, and cairo's Python bindings. The launcher reports missing dependencies. To install or update from this source directory:
