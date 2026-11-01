@@ -15,7 +15,7 @@ This installs **one** plugin (`io.github.bravehart911.leaf-control`), puts the L
 
 ### Install from an Omarchy plugin repository
 
-Once this directory is published as a Git repository, Omarchy's standard install path is:
+Install from the public Git repository with Omarchy's standard plugin command:
 
 ```sh
 omarchy plugin add https://github.com/BraveHart911/leaf-omarchy-plugin.git --enable
