@@ -2,7 +2,7 @@
   "schemaVersion": 1,
   "id": "io.github.bravehart911.leaf-control",
   "name": "Leaf",
-  "version": "2.2.0",
+  "version": "2.3.0",
   "author": "BraveHart911",
   "license": "MIT",
   "description": "Applications, workspaces and system monitoring in one adaptive desktop hub.",

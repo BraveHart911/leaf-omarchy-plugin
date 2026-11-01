@@ -10,7 +10,7 @@ from unittest.mock import patch
 
 from app_layout import ApplicationLayout
 from install import migrate_shell, PLUGIN_ID, RUNTIME_FILES
-from layout_rules import grid_columns, page_capacity
+from layout_rules import dock_hover_sizes, grid_columns, page_capacity
 from preferences import DEFAULT_SETTINGS, PREFERENCES, load_settings, save_settings
 from workspace_model import workspace_sets, workspace_target
 
@@ -53,6 +53,24 @@ class PreferenceTests(unittest.TestCase):
 
 
 class PinTests(unittest.TestCase):
+    def test_dock_drag_reorders_pins_in_one_saved_change(self):
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / "layout.json"
+            layout = ApplicationLayout(path)
+            layout.favorites = ["one", "two", "three", "four"]
+            layout.save()
+            self.assertTrue(layout.move_favorite_before("four", "two"))
+            self.assertEqual(ApplicationLayout(path).favorites, ["one", "four", "two", "three"])
+            self.assertFalse(layout.move_favorite_before("missing", "two"))
+
+    def test_failed_dock_drag_keeps_previous_pin_order(self):
+        layout = ApplicationLayout(Path("/nonexistent/leaf-test"))
+        layout.favorites = ["one", "two"]
+        with patch.object(layout, "save", side_effect=OSError("disk full")):
+            with self.assertRaises(OSError):
+                layout.move_favorite_before("two", "one")
+        self.assertEqual(layout.favorites, ["one", "two"])
+
     def test_pin_order_and_removal_persist_without_changing_grid_or_groups(self):
         with tempfile.TemporaryDirectory() as directory:
             path = Path(directory) / "layout.json"
@@ -96,6 +114,18 @@ class WorkspaceTests(unittest.TestCase):
 
 
 class ResponsiveTests(unittest.TestCase):
+    def test_dock_magnification_peaks_at_hover_and_tapers_to_neighbors(self):
+        self.assertEqual(dock_hover_sizes(5, 2, 64, 150, 2), [72, 88, 96, 88, 72])
+        self.assertEqual(dock_hover_sizes(3, None, 64, 150, 2), [64, 64, 64])
+
+    def test_dock_magnification_is_continuous_across_slot_boundaries(self):
+        before = dock_hover_sizes(7, 2.499, 64, 150, 2)
+        after = dock_hover_sizes(7, 2.501, 64, 150, 2)
+        self.assertTrue(all(abs(a - b) < 0.1 for a, b in zip(before, after)))
+        middle = dock_hover_sizes(7, 2.5, 64, 150, 2)
+        self.assertAlmostEqual(middle[2], middle[3])
+        self.assertTrue(all(64 <= size <= 96 for size in middle))
+
     def test_page_capacity_uses_fitted_columns_in_narrow_windows(self):
         narrow = grid_columns(480, 124, 14, 12)
         self.assertEqual(narrow, 3)

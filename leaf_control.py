@@ -32,7 +32,40 @@ import gi
 gi.require_version("Gtk", "4.0")
 gi.require_version("Gdk", "4.0")
 gi.require_version("Pango", "1.0")
-from gi.repository import Gdk, Gio, GLib, GObject, Gtk, Pango
+gi.require_version("Graphene", "1.0")
+from gi.repository import Gdk, Gio, GLib, GObject, Gtk, Pango, Graphene
+
+
+class DockIcon(Gtk.Widget):
+    """Draw magnification inside a fixed slot without changing GTK layout."""
+    def __init__(self, gicon, base, peak):
+        super().__init__()
+        self.base = base
+        self.peak = peak
+        self.draw_size = float(base)
+        theme = Gtk.IconTheme.get_for_display(self.get_display())
+        if gicon is None:
+            gicon = Gio.ThemedIcon.new("application-x-executable")
+        self.paintable = theme.lookup_by_gicon(
+            gicon, peak, self.get_scale_factor(), Gtk.TextDirection.NONE,
+            Gtk.IconLookupFlags.PRELOAD)
+        self.set_halign(Gtk.Align.CENTER)
+
+    def do_measure(self, orientation, for_size):
+        return self.peak, self.peak, -1, -1
+
+    def do_snapshot(self, snapshot):
+        size = self.draw_size
+        point = Graphene.Point()
+        point.init((self.get_width() - size) / 2, self.get_height() - size)
+        snapshot.save()
+        snapshot.translate(point)
+        self.paintable.snapshot(snapshot, size, size)
+        snapshot.restore()
+
+    def set_draw_size(self, size):
+        self.draw_size = float(size)
+        self.queue_draw()
 
 from app_layout import ApplicationLayout, app_identifier
 from file_search import LocalFileSearch, user_search_roots
@@ -45,6 +78,8 @@ OMARCHY_STATE_DIR = Path(os.environ.get("XDG_STATE_HOME", Path.home() / ".local/
 OMARCHY_THEME_COLORS = OMARCHY_STATE_DIR / "theme/colors.toml"
 OMARCHY_THEME_SHELL = OMARCHY_STATE_DIR / "theme/shell.toml"
 DEFAULT_NOTE_FOLDER = "Inbox"
+EXPOSE_PLUGIN_ID = "expose.window-overview"
+EXPOSE_REPOSITORY = "https://github.com/kristofferR/omarchy-expose.git"
 
 
 def clean_note_folder(value) -> str | None:
@@ -100,6 +135,37 @@ def parse_omarchy_plugin_catalog(output: str) -> set[str]:
         and isinstance(item.get("kinds"), (list, tuple, set))
         and set(item["kinds"]) & {"panel", "overlay", "bar-widget"}
     }
+
+
+def expose_plugin_enabled(output: str) -> bool:
+    """Check the installed Omarchy registry before invoking Exposé's IPC."""
+    plugins = json.loads(output)
+    if not isinstance(plugins, list):
+        return False
+    return any(
+        isinstance(item, dict)
+        and item.get("id") == EXPOSE_PLUGIN_ID
+        and item.get("enabled") is True
+        and isinstance(item.get("kinds"), list)
+        and "overlay" in item["kinds"]
+        for item in plugins
+    )
+
+
+def request_expose_open() -> str | None:
+    """Return an error when the optional Exposé plugin cannot be opened."""
+    try:
+        listing = subprocess.run(["omarchy", "plugin", "list", "--json"],
+                                 capture_output=True, text=True, timeout=4, check=True)
+        if not expose_plugin_enabled(listing.stdout):
+            return ("Exposé is not enabled. Install it with: "
+                    f"omarchy plugin add {EXPOSE_REPOSITORY} --enable")
+        result = subprocess.run(["omarchy-shell", "expose", "open"],
+                                capture_output=True, text=True, timeout=5)
+        return None if result.returncode == 0 else (
+            result.stderr.strip() or "The Exposé plugin did not open")
+    except (OSError, ValueError, subprocess.SubprocessError) as exc:
+        return str(exc)
 
 def _blend_hex(first: str, second: str, amount: float) -> str:
     a = tuple(int(first[index:index + 2], 16) for index in (1, 3, 5))
@@ -505,7 +571,7 @@ def export_note_markdown(note: dict, path: Path) -> None:
 from preferences import DEFAULT_SETTINGS, APP_PAGE_INDICATOR_STYLES, load_settings, save_settings
 from settings_ui import SettingsMixin
 from window_layout import WindowLayoutMixin
-from layout_rules import page_capacity
+from layout_rules import page_capacity, dock_hover_sizes
 from workspace_model import workspace_sets
 
 APP_CATEGORY_ORDER = (
@@ -878,6 +944,15 @@ class LeafControl(SettingsMixin, WindowLayoutMixin, Gtk.Application):
         self.search.set_hexpand(False)
         self.search.connect("search-changed", self._search_changed)
         search_row.set_center_widget(self.search)
+        expose_button = Gtk.Button()
+        expose_button.set_child(Gtk.Image.new_from_icon_name("view-paged-symbolic"))
+        expose_button.add_css_class("expose-button")
+        expose_button.set_tooltip_text("Show open windows with the Exposé plugin")
+        self._set_accessible_info(expose_button, "Open windows with Exposé")
+        expose_button.connect("clicked", self._open_expose)
+        search_row.set_start_widget(expose_button)
+        self.expose_button = expose_button
+        expose_button.set_visible(self.settings["show_expose_button"])
         command_button = Gtk.Button()
         command_button.set_has_frame(False)
         command_button.set_child(Gtk.Image.new_from_icon_name("utilities-terminal-symbolic"))
@@ -1254,9 +1329,17 @@ class LeafControl(SettingsMixin, WindowLayoutMixin, Gtk.Application):
         self.app_footer = panel
         self.running_dock = Gtk.Box(spacing=4, halign=Gtk.Align.CENTER)
         self.running_dock.add_css_class("running-dock")
+        self.running_dock.set_valign(Gtk.Align.END)
         self.running_dock_buttons = []
         self.running_dock_signature = None
         self.dock_popover = None
+        self.dock_hover_key = None
+        self.dock_animation_source = None
+        self.dragged_dock_pin_id = None
+        dock_motion = Gtk.EventControllerMotion.new()
+        dock_motion.connect("leave", lambda *_args: self._set_dock_hover(None))
+        dock_motion.connect("motion", self._dock_pointer_motion)
+        self.running_dock.add_controller(dock_motion)
         dock_scroll = Gtk.ScrolledWindow(hexpand=True)
         self.running_dock_scroller = dock_scroll
         dock_scroll.set_policy(Gtk.PolicyType.AUTOMATIC, Gtk.PolicyType.NEVER)
@@ -1627,11 +1710,16 @@ class LeafControl(SettingsMixin, WindowLayoutMixin, Gtk.Application):
             child = next_child
         self.running_dock_buttons = []
         dock_keys = list(dict.fromkeys([*pinned, *(groups.keys() if self.settings["dock_show_running"] else [])]))
+        running_only = [key for key in dock_keys if key not in pinned]
         if not dock_keys:
             hint = Gtk.Label(label="Pin apps here · right-click an app or drag it to this bar")
             hint.add_css_class("dock-empty-hint")
             self.running_dock.append(hint)
         for key in dock_keys:
+            if pinned and running_only and key == running_only[0]:
+                divider = Gtk.Separator(orientation=Gtk.Orientation.VERTICAL)
+                divider.add_css_class("dock-divider")
+                self.running_dock.append(divider)
             group = groups.get(key, {"app": apps_by_id.get(key), "windows": [], "name": ""})
             button = Gtk.Button()
             button.dock_key = key
@@ -1642,17 +1730,28 @@ class LeafControl(SettingsMixin, WindowLayoutMixin, Gtk.Application):
             if any(w.get("workspace", {}).get("id") in active for w in windows):
                 button.add_css_class("dock-current")
             box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=3)
-            icon = Gtk.Image.new_from_gicon(app.get_icon()) if app and app.get_icon() else Gtk.Image.new_from_icon_name("application-x-executable")
-            icon.set_pixel_size(self.settings["dock_icon_size"])
+            base = self.settings["dock_icon_size"]
+            peak = round(base * self.settings["dock_magnify_scale"] / 100) if self.settings["dock_magnify"] else base
+            icon = DockIcon(app.get_icon() if app else None, base, peak)
+            button.dock_icon = icon
             box.append(icon)
-            if windows:
-                marker = Gtk.Label(label="•" * min(4, len(windows)))
-                marker.add_css_class("dock-indicator")
-                box.append(marker)
-            elif is_pinned:
-                marker = Gtk.Label(label="★")
-                marker.add_css_class("dock-pin-indicator")
-                box.append(marker)
+            indicators = Gtk.Box(spacing=3, halign=Gtk.Align.CENTER)
+            indicators.add_css_class("dock-indicators")
+            style = self.settings["dock_indicator_style"]
+            if windows and style in ("dots", "single"):
+                for _ in range(min(len(windows), 3) if style == "dots" else 1):
+                    marker = Gtk.Box()
+                    marker.add_css_class("dock-dot")
+                    indicators.append(marker)
+                if style == "dots" and len(windows) > 3:
+                    count_label = Gtk.Label(label=str(len(windows)))
+                    count_label.add_css_class("dock-count")
+                    indicators.append(count_label)
+            elif windows and style == "bar":
+                marker = Gtk.Box()
+                marker.add_css_class("dock-bar")
+                indicators.append(marker)
+            box.append(indicators)
             button.set_child(box)
             name = app.get_display_name() if app else group["name"]
             if self.settings["dock_show_names"]:
@@ -1664,7 +1763,9 @@ class LeafControl(SettingsMixin, WindowLayoutMixin, Gtk.Application):
             button.set_tooltip_text(f"{name} · {'Pinned · ' if is_pinned else ''}{count} running window{'s' if count != 1 else ''}")
             self._set_accessible_info(button, name, f"{details} Activate to {'switch to it' if windows else 'launch it'}. Right click for app actions.")
             button.connect("clicked", self._activate_dock_entry, app, windows)
-            if windows:
+            if is_pinned:
+                self._add_dock_pin_drag(button, key)
+            elif windows:
                 self._add_window_drag(button, windows)
             if app:
                 context = Gtk.GestureClick.new()
@@ -1675,6 +1776,110 @@ class LeafControl(SettingsMixin, WindowLayoutMixin, Gtk.Application):
             self.running_dock_buttons.append(button)
             if key == focused_key:
                 button.grab_focus()
+        self._set_dock_hover(self.dock_hover_key, immediate=True)
+
+    def _dock_pointer_motion(self, _controller, x, _y):
+        if getattr(self, "dock_drag_active", False):
+            return
+        centers = [b.get_allocation().x + b.get_width() / 2
+                   for b in self.running_dock_buttons]
+        if not centers:
+            return
+        # Interpolate across stable slot centers, including the group divider.
+        position = 0.0
+        if x >= centers[-1]:
+            position = len(centers) - 1
+        elif x > centers[0]:
+            for i in range(len(centers) - 1):
+                if centers[i] <= x <= centers[i + 1]:
+                    position = i + (x - centers[i]) / max(1, centers[i + 1] - centers[i])
+                    break
+        self._set_dock_hover(position)
+
+    def _set_dock_hover(self, position, immediate=False):
+        self.dock_hover_key = position
+        if not self.settings["dock_magnify"]:
+            position = None
+        self.dock_targets = dock_hover_sizes(
+            len(self.running_dock_buttons), position, self.settings["dock_icon_size"],
+            self.settings["dock_magnify_scale"], self.settings["dock_magnify_reach"])
+        if immediate or self.settings["motion_style"] == "reduced":
+            for button, target in zip(self.running_dock_buttons, self.dock_targets):
+                button.dock_icon.set_draw_size(target)
+            return
+        if self.dock_animation_source is not None:
+            return
+        self.dock_frame_time = None
+
+        def animate(_widget, clock):
+            now = clock.get_frame_time()
+            elapsed = (now - self.dock_frame_time) / 1_000_000 if self.dock_frame_time else 1 / 60
+            self.dock_frame_time = now
+            blend = 1 - math.exp(-min(elapsed, 0.05) / 0.065)
+            changing = False
+            for button, target in zip(self.running_dock_buttons, self.dock_targets):
+                icon = button.dock_icon
+                delta = target - icon.draw_size
+                changing |= abs(delta) > 0.05
+                icon.set_draw_size(target if abs(delta) <= 0.05 else icon.draw_size + delta * blend)
+            if not changing:
+                self.dock_animation_source = None
+                return GLib.SOURCE_REMOVE
+            return GLib.SOURCE_CONTINUE
+
+        self.dock_animation_source = self.running_dock.add_tick_callback(animate)
+
+    def _add_dock_pin_drag(self, button, app_id):
+        source = Gtk.DragSource.new()
+        source.set_actions(Gdk.DragAction.MOVE)
+        source.connect("prepare", self._prepare_dock_pin_drag, app_id)
+        source.connect("drag-begin", lambda *_args: self._begin_dock_pin_drag())
+        source.connect("drag-end", self._finish_dock_pin_drag)
+        button.add_controller(source)
+        target = Gtk.DropTarget.new(GObject.TYPE_STRING, Gdk.DragAction.MOVE | Gdk.DragAction.COPY)
+        target.connect("enter", self._dock_pin_drop_enter)
+        target.connect("motion", self._dock_pin_drop_enter)
+        target.connect("leave", self._clear_drop_target)
+        target.connect("drop", self._drop_dock_pin, app_id)
+        button.add_controller(target)
+
+    def _prepare_dock_pin_drag(self, source, x, y, app_id):
+        self.dragged_dock_pin_id = app_id
+        source.set_icon(Gtk.WidgetPaintable.new(source.get_widget()), int(x), int(y))
+        return Gdk.ContentProvider.new_for_value(app_id)
+
+    def _begin_dock_pin_drag(self):
+        self.dock_drag_active = True
+        self._set_dock_hover(None)
+
+    def _finish_dock_pin_drag(self, *_args):
+        self.dock_drag_active = False
+        self.dragged_dock_pin_id = None
+        GLib.idle_add(self._refresh_window_state)
+
+    def _dock_pin_drop_enter(self, target, *_args):
+        target.get_widget().add_css_class("drop-target-add")
+        return Gdk.DragAction.MOVE if self.dragged_dock_pin_id else Gdk.DragAction.COPY
+
+    def _drop_dock_pin(self, target, source_id, _x, _y, target_id):
+        self._clear_drop_target(target)
+        if source_id not in self.layout.favorites:
+            pinned = self._pin_app_drop(target, source_id, _x, _y)
+            if pinned:
+                self._render_pinned_editor()
+            return pinned
+        if target_id not in self.layout.favorites:
+            return False
+        try:
+            moved = self.layout.move_favorite_before(source_id, target_id)
+        except OSError as exc:
+            self._message(f"Could not reorder pinned apps: {exc}")
+            return False
+        if moved:
+            self.running_dock_signature = None
+            self._update_running_dock()
+            self._render_pinned_editor()
+        return moved
 
     def _activate_dock_entry(self, button, app, windows):
         if windows:
@@ -2419,6 +2624,8 @@ class LeafControl(SettingsMixin, WindowLayoutMixin, Gtk.Application):
         return GLib.SOURCE_REMOVE
 
     def _set_scrollable_context_menu(self, popover, actions):
+        popover.add_css_class("leaf-context-popover")
+        popover.set_has_arrow(False)
         scroll = Gtk.ScrolledWindow()
         scroll.set_policy(Gtk.PolicyType.NEVER, Gtk.PolicyType.AUTOMATIC)
         scroll.set_propagate_natural_height(True)
@@ -2455,7 +2662,7 @@ class LeafControl(SettingsMixin, WindowLayoutMixin, Gtk.Application):
     def _app_context_entries(self, app, tile=None):
         entries = [
             (("New window" if self._windows_for_app(app) else "Open app"), "window-new-symbolic", lambda: self._launch_app(app), False),
-            (("Unpin from app bar" if self.layout.is_favorite(app) else "Pin to app bar"), "starred-symbolic", lambda: self.layout.toggle_favorite(app), False),
+            (("Unpin from dock" if self.layout.is_favorite(app) else "Pin to dock"), "starred-symbolic", lambda: self.layout.toggle_favorite(app), False),
             ("Create group…", "folder-new-symbolic", lambda: self._create_folder_dialog(app), False),
         ]
         current_folder = self.layout.folder_for(app)
@@ -2472,6 +2679,7 @@ class LeafControl(SettingsMixin, WindowLayoutMixin, Gtk.Application):
     @staticmethod
     def _append_app_context_header(container, app):
         header = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=10)
+        header.add_css_class("context-menu-header")
         icon = Gtk.Image.new_from_gicon(app.get_icon()) if app.get_icon() else Gtk.Image.new_from_icon_name("application-x-executable-symbolic")
         icon.set_pixel_size(28)
         header.append(icon)
@@ -2755,6 +2963,8 @@ class LeafControl(SettingsMixin, WindowLayoutMixin, Gtk.Application):
         if not groups or not anchor:
             return None
         popover = Gtk.Popover()
+        popover.add_css_class("leaf-context-popover")
+        popover.set_has_arrow(False)
         popover.set_parent(anchor)
         content = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=6)
         content.set_margin_top(8)
@@ -2832,7 +3042,7 @@ class LeafControl(SettingsMixin, WindowLayoutMixin, Gtk.Application):
         app_id = app_identifier(app)
         entries = [
             ("Open app", "system-run-symbolic", lambda: self._activate_app(app), False),
-            (("Unpin from app bar" if self.layout.is_favorite(app) else "Pin to app bar"), "starred-symbolic", lambda: self.layout.toggle_favorite(app), False),
+            (("Unpin from dock" if self.layout.is_favorite(app) else "Pin to dock"), "starred-symbolic", lambda: self.layout.toggle_favorite(app), False),
             ("Remove from group", "list-remove-symbolic", lambda: self._remove_app_from_folder(folder_id, app_id), True),
         ]
         if any(target_id != folder_id for target_id in self.layout.folders):
@@ -3233,6 +3443,23 @@ class LeafControl(SettingsMixin, WindowLayoutMixin, Gtk.Application):
             return
         self._close_command_panel()
         self._dismiss_drawer()
+
+    def _open_expose(self, *_args):
+        """Open the optional Exposé overlay without blocking GTK."""
+        if not self.settings["show_expose_button"]:
+            return
+
+        def launch():
+            GLib.idle_add(self._finish_expose_open, request_expose_open())
+
+        threading.Thread(target=launch, name="leaf-expose-launch", daemon=True).start()
+
+    def _finish_expose_open(self, error):
+        if error:
+            self._message(error)
+        else:
+            self._dismiss_drawer()
+        return GLib.SOURCE_REMOVE
 
     def _build_system_page(self):
         page = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=8)

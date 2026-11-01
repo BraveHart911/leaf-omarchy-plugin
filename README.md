@@ -1,6 +1,6 @@
 # Leaf
 
-Leaf is one Omarchy plugin for applications, workspaces, and system monitoring. It provides a bar button and workspace overlay through Omarchy Shell, plus a GTK4 window with Apps, System, Tools, and Settings. Settings opens fullscreen; F11 or the header control switches to a resizable window for tiling. The Apps page includes favorites, local file search, app groups, a pinned/running app bar, and monitor-aware workspaces. The System page reads local CPU, memory, GPU, thermal, storage, and network data where available.
+Leaf is one Omarchy plugin for applications, workspaces, and system monitoring. It provides a bar button and workspace overlay through Omarchy Shell, plus a GTK4 window with Apps, System, and Settings. Settings opens fullscreen; F11 or the header control switches to a resizable window for tiling. The Apps page includes favorites, local file search, app groups, a pinned/running app dock, and monitor-aware workspaces. The System page reads local CPU, memory, GPU, thermal, storage, and network data where available.
 
 ## Screenshots
 
@@ -40,6 +40,20 @@ omarchy plugin remove io.github.bravehart911.leaf-control
 The root of this directory is the complete Omarchy plugin package, including `manifest.json`, `BarWidget.qml`, and `Menu.qml`. The manifest exposes both the bar widget and menu under the same plugin ID. The GTK launcher resolves its resources relative to the installed plugin, without a developer-specific path. The setup script backs up any unrelated launcher or desktop entry it replaces and restores it on removal. It leaves modified integration files in place for manual review.
 
 ## Use
+
+### App dock inside Leaf
+
+The dock on Leaf's Apps page keeps pinned apps first, followed by running apps. Hovering magnifies an app and its neighbors within fixed slots, so the dock stays anchored. Pointer motion blends continuously between icons using frame-timed easing. A translucent glass-style surface, running-window indicators, and a divider make the groups easy to scan. Right-click an app to pin or unpin it; pins use Leaf's existing favorites, so their order persists. Drag a pinned app onto another pin to reorder it. Click an open app to switch to its window or choose among multiple windows. **Settings → App dock** controls the look and behavior.
+
+The dock design takes inspiration from [Arc Dock](https://github.com/claudsondouglas/arc.dock). Its surface is drawn inside Leaf's GTK window, so compositor blur depends on the desktop's window blur settings.
+
+### Exposé button
+
+Enable **Settings → Applications → Open windows button** to show a button beside Leaf's search field. It opens the separate [Exposé for Omarchy](https://github.com/kristofferR/omarchy-expose) plugin when installed and enabled. Leaf does not install it automatically:
+
+```sh
+omarchy plugin add https://github.com/kristofferR/omarchy-expose.git --enable
+```
 
 Left-click the Leaf bar button to open the app; right-click it for Settings. `leaf-control --settings` opens Settings directly, and `leaf-control --window` opens a resizable window. F11 toggles fullscreen. The Settings page has searchable categories, an editor for pinned apps, and controls for grid, workspace, system, and dock behavior.
 

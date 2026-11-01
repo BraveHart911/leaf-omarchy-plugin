@@ -1,4 +1,4 @@
-"""Responsive native window layout and app bar appearance."""
+"""Responsive native window layout and app dock appearance."""
 from gi.repository import Gdk, Gtk, GLib
 from layout_rules import grid_columns
 
@@ -84,12 +84,23 @@ class WindowLayoutMixin:
             Gtk.StyleContext.add_provider_for_display(Gdk.Display.get_default(), provider,
                                                      Gtk.STYLE_PROVIDER_PRIORITY_APPLICATION + 2)
         padding = self.settings["dock_padding"]
-        surface = "alpha(@leaf-ui-bg-deep, 0.94)" if self.settings["dock_background"] else "transparent"
-        provider.load_from_data(f".running-dock {{ padding: {padding}px; background: {surface}; }}".encode())
+        if self.settings["dock_background"]:
+            opacity = self.settings["dock_glass_opacity"] / 100
+            surface = (f"background-color: alpha(@leaf-ui-bg-deep, {opacity:.2f}); "
+                       "background-image: linear-gradient(to bottom, alpha(@leaf-ui-text, 0.09), transparent); "
+                       "border: 1px solid alpha(@leaf-ui-text, 0.18); "
+                       "box-shadow: 0 12px 28px alpha(@leaf-ui-bg-deep, 0.42), inset 0 1px alpha(@leaf-ui-text, 0.13);")
+        else:
+            surface = "background: transparent; border: 1px solid transparent; box-shadow: none;"
+        provider.load_from_data(f".running-dock {{ padding: {padding}px; {surface} }}".encode())
         self.running_dock.set_spacing(self.settings["dock_spacing"])
         self.running_dock.set_halign({"start": Gtk.Align.START, "center": Gtk.Align.CENTER,
                                     "end": Gtk.Align.END}[self.settings["dock_alignment"]])
-        self.running_dock_scroller.set_min_content_height(self.settings["dock_icon_size"] + 30 + padding * 2 + (20 if self.settings["dock_show_names"] else 0))
+        peak = (self.settings["dock_magnify_scale"] / 100
+                if self.settings["dock_magnify"] else 1)
+        self.running_dock_scroller.set_min_content_height(
+            round(self.settings["dock_icon_size"] * peak) + 34 + padding * 2
+            + (20 if self.settings["dock_show_names"] else 0))
         after = self.window_section if self.settings["dock_position"] == "top" else self.app_footer
         self.apps_page.reorder_child_after(self.running_dock_scroller, after)
         self.running_dock_signature = None

@@ -6,10 +6,15 @@ button:checked { color: @leaf-ui-text; background: @leaf-ui-selection; }
 button:focus-visible { outline: 2px solid @leaf-ui-accent; outline-offset: 2px; }
 popover, menu { color: @leaf-ui-text; background: @leaf-ui-bg-deep; border: 1px solid @leaf-ui-border-strong; }
 popover contents { background: @leaf-ui-bg-deep; }
+popover.leaf-context-popover { background: transparent; border: 0; box-shadow: none; }
+popover.leaf-context-popover > contents { background: @leaf-ui-bg-deep; border: 1px solid alpha(@leaf-ui-text, 0.14); border-radius: 16px; padding: 3px; box-shadow: 0 10px 28px alpha(#000000, 0.42); }
 .group-context-menu { min-width: 220px; }
+.context-menu-header { padding: 8px 9px 10px; }
+.group-context-menu separator { background: alpha(@leaf-ui-text, 0.10); min-height: 1px; margin: 2px 8px 6px; }
 .context-menu-title { color: @leaf-ui-text; font-size: 13px; font-weight: 750; }
-.context-menu-action { color: @leaf-ui-text; background: transparent; border: 0; border-radius: 7px; padding: 7px 5px; }
-.context-menu-action:hover { background: @leaf-ui-surface-hover; }
+.context-menu-action { color: @leaf-ui-text; background: transparent; border: 0; border-radius: 10px; padding: 8px 7px; }
+.context-menu-action:hover { background: alpha(@leaf-ui-text, 0.10); }
+.context-menu-action:focus-visible { outline: 2px solid @leaf-ui-accent; outline-offset: -2px; }
 .context-menu-action.destructive-action { color: #e47777; }
 .context-menu-action.destructive-action:hover { background: alpha(#e47777, 0.14); }
 list, listview { color: @leaf-ui-text; background: transparent; }
@@ -36,6 +41,9 @@ entry.search text selection { background-color: @leaf-ui-accent; color: @leaf-ui
 .settings-nav-button { margin-left: 8px; min-width: 40px; min-height: 40px; padding: 8px; color: @leaf-ui-text-muted; background: transparent; border: 0; border-radius: 999px; }
 .settings-nav-button:hover, .settings-nav-button.active { color: @leaf-ui-accent; background: alpha(@leaf-ui-accent, 0.10); }
 .search-row { min-height: 40px; }
+.search-row .expose-button { border: 1px solid @leaf-ui-border; border-radius: 8px; padding: 7px; }
+.search-row .expose-button:hover { background: @leaf-ui-accent-soft; }
+.search-row .expose-button:focus-visible { outline: 2px solid @leaf-ui-accent; outline-offset: 2px; }
 .drawer-sidebar { padding: 16px 14px; background: alpha(@leaf-ui-bg-deep, 0.42); border-right: 1px solid @leaf-ui-border; }
 .drawer-content { padding: 20px 32px; }
 .sidebar-brand { color: @leaf-ui-text; font-size: 16px; font-weight: 800; }
@@ -89,7 +97,7 @@ entry.search text selection { background-color: @leaf-ui-accent; color: @leaf-ui
 .favorites_heading.drop-target-add { color: @leaf-ui-accent; }
 .app-browser-panel { background: transparent; border: 0; border-radius: 0; padding: 12px 18px 8px; box-shadow: none; }
 .app-dock-scroll.drop-target-add { outline: 2px solid @leaf-ui-accent; outline-offset: -3px; border-radius: 18px; }
-.dock-pin-indicator { color: @leaf-ui-accent; font-size: 10px; }
+.app-dock-scroll { background: transparent; border: 0; box-shadow: none; }
 .dock-empty-hint { color: @leaf-ui-text-muted; font-size: 11px; padding: 8px 16px; }
 .command-panel { min-width: 520px; min-height: 0; }
 .app-page-controls button, .app-page-controls button:hover { background: transparent; border: 0; box-shadow: none; }
@@ -143,12 +151,19 @@ entry.search text selection { background-color: @leaf-ui-accent; color: @leaf-ui
 .clock-digital { color: @leaf-ui-text; font-size: 31px; font-weight: 750; font-feature-settings: "tnum"; }
 .top-nav-button:focus-visible, .settings-nav-button:focus-visible { outline: 2px solid @leaf-ui-accent; outline-offset: 2px; background: @leaf-ui-accent-soft; }
 searchentry:focus-within { outline: 2px solid @leaf-ui-accent; outline-offset: 2px; }
-.running-dock { background: alpha(@leaf-ui-bg-deep, 0.88); border-radius: 22px; padding: 7px 12px; }
-.dock-app { background: transparent; border: 0; box-shadow: none; border-radius: 14px; padding: 8px 10px 4px; }
-.dock-app:hover { background: @leaf-ui-accent-soft; }
+.running-dock { border-radius: 22px; padding: 7px 12px; }
+.dock-app { background: transparent; border: 0; box-shadow: none; border-radius: 14px; padding: 7px 9px 4px; }
+.dock-app:hover { background: alpha(@leaf-ui-text, 0.09); }
 .dock-app:focus-visible { background: @leaf-ui-accent-soft; outline: 2px solid @leaf-ui-accent; outline-offset: -2px; }
-.dock-indicator { color: @leaf-ui-text-muted; font-size: 10px; }
-.dock-current .dock-indicator { color: @leaf-ui-accent; }
+.dock-app.drop-target-add { background: @leaf-ui-accent-soft; outline: 2px solid @leaf-ui-accent; outline-offset: -2px; }
+.dock-indicators { min-height: 8px; }
+.dock-dot { background: @leaf-ui-text-muted; border-radius: 999px; min-width: 5px; min-height: 5px; }
+.dock-current .dock-dot { background: @leaf-ui-accent; }
+.dock-count { color: @leaf-ui-text-soft; font-size: 9px; font-weight: 700; }
+.dock-current .dock-count { color: @leaf-ui-accent; }
+.dock-bar { background: @leaf-ui-text-muted; border-radius: 999px; min-width: 17px; min-height: 3px; }
+.dock-current .dock-bar { background: @leaf-ui-accent; }
+.dock-divider { background: alpha(@leaf-ui-text, 0.20); min-width: 1px; margin: 13px 7px; }
 .clock-date { color: @leaf-ui-text-soft; font-size: 13px; }
 .calc-display { background: transparent; border: 0; border-bottom: 1px solid @leaf-ui-border; border-radius: 0; padding: 12px 2px; }
 .calc-display entry { background: transparent; border: 0; box-shadow: none; padding: 3px 2px; }
@@ -202,8 +217,6 @@ flowboxchild { padding: 0; border: 0; }
 .settings-page searchentry { min-height: 30px; }
 .pinned-editor { padding: 16px 20px; border-top: 1px solid @leaf-ui-border; }
 .dock-name { font-size: 11px; }
-.running-dock { border: 0; box-shadow: none; border-radius: 20px; }
-.dock-app { padding: 6px 8px 4px; border-radius: 10px; }
 .dock-empty-hint { padding: 8px; color: @leaf-ui-text-muted; }
 .window-section button { padding: 8px; min-width: 22px; background: transparent; border: 0; border-radius: 10px; color: @leaf-ui-text-muted; }
 .window-section button:hover { background: alpha(@leaf-ui-text, 0.055); color: @leaf-ui-text; }

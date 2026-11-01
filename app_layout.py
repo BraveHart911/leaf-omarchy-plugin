@@ -200,6 +200,22 @@ class ApplicationLayout:
             raise
         return True
 
+    def move_favorite_before(self, source_id: str, target_id: str) -> bool:
+        """Reorder a pinned app in one save when it is dropped on another pin."""
+        if source_id not in self.favorites or target_id not in self.favorites:
+            return False
+        if source_id == target_id:
+            return True
+        previous = self.favorites[:]
+        self.favorites.remove(source_id)
+        self.favorites.insert(self.favorites.index(target_id), source_id)
+        try:
+            self.save()
+        except OSError:
+            self.favorites = previous
+            raise
+        return True
+
     def remove_favorite(self, app_id: str) -> bool:
         if app_id not in self.favorites:
             return False

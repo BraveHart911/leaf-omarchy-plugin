@@ -88,6 +88,26 @@ class AppLaunchTests(unittest.TestCase):
         self.assertEqual(self.messages, [])
         self.assertEqual(self.launcher._launching_app_ids, set())
 
+    def test_expose_requires_enabled_overlay(self):
+        enabled = json.dumps([{"id": leaf.EXPOSE_PLUGIN_ID, "enabled": True, "kinds": ["overlay"]}])
+        disabled = json.dumps([{"id": leaf.EXPOSE_PLUGIN_ID, "enabled": False, "kinds": ["overlay"]}])
+        wrong_kind = json.dumps([{"id": leaf.EXPOSE_PLUGIN_ID, "enabled": True, "kinds": ["panel"]}])
+        self.assertTrue(leaf.expose_plugin_enabled(enabled))
+        self.assertFalse(leaf.expose_plugin_enabled(disabled))
+        self.assertFalse(leaf.expose_plugin_enabled(wrong_kind))
+
+    def test_expose_invokes_only_the_enabled_plugin(self):
+        listing = json.dumps([{"id": leaf.EXPOSE_PLUGIN_ID, "enabled": True, "kinds": ["overlay"]}])
+        with patch.object(leaf.subprocess, "run", side_effect=[
+            SimpleNamespace(stdout=listing), SimpleNamespace(returncode=0, stderr="")
+        ]) as run:
+            self.assertIsNone(leaf.request_expose_open())
+        self.assertEqual(run.call_args_list[1].args[0], ["omarchy-shell", "expose", "open"])
+
+        with patch.object(leaf.subprocess, "run", return_value=SimpleNamespace(stdout="[]")) as run:
+            self.assertIn("omarchy plugin add", leaf.request_expose_open())
+        self.assertEqual(run.call_count, 1)
+
 
 class LauncherDragDropTests(unittest.TestCase):
     class FakeApp:
@@ -324,7 +344,7 @@ class ContextMenuTests(unittest.TestCase):
             _create_folder_dialog=lambda _app: None,
         )
         entries = leaf.LeafControl._app_context_entries(owner, app)
-        self.assertEqual([entry[0] for entry in entries], ["Open app", "Pin to app bar", "Create group…"])
+        self.assertEqual([entry[0] for entry in entries], ["Open app", "Pin to dock", "Create group…"])
 
     def test_app_menu_adds_only_the_current_group_action(self):
         app = SimpleNamespace(get_id=lambda: "app.desktop")
@@ -338,7 +358,7 @@ class ContextMenuTests(unittest.TestCase):
         entries = leaf.LeafControl._app_context_entries(owner, app)
         self.assertEqual(
             [entry[0] for entry in entries],
-            ["New window", "Unpin from app bar", "Create group…", "Remove from group"],
+            ["New window", "Unpin from dock", "Create group…", "Remove from group"],
         )
 
     def test_app_menu_uses_one_group_picker_action_instead_of_each_destination(self):
@@ -384,7 +404,7 @@ class ContextMenuTests(unittest.TestCase):
         entries = leaf.LeafControl._folder_app_context_entries(owner, app, "work", object())
         self.assertEqual(
             [entry[0] for entry in entries],
-            ["Open app", "Pin to app bar", "Remove from group", "Move to group…"],
+            ["Open app", "Pin to dock", "Remove from group", "Move to group…"],
         )
 
     def test_escape_closes_context_menu_before_dismissing_drawer(self):

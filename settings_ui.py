@@ -233,8 +233,12 @@ class SettingsMixin:
         self.setting_controls["motion_duration"].set_sensitive(self.settings["motion_style"] != "reduced")
         self.setting_controls["dock_running_scope"].set_sensitive(self.settings["dock_show_running"])
         self.setting_controls["app_tile_corners"].set_sensitive(self.settings["app_tile_style"] != "minimal")
+        for key in ("dock_magnify_scale", "dock_magnify_reach"):
+            self.setting_controls[key].set_sensitive(self.settings["dock_magnify"])
+        self.setting_controls["dock_glass_opacity"].set_sensitive(self.settings["dock_background"])
 
     def _apply_preferences(self):
+        self.expose_button.set_visible(self.settings["show_expose_button"])
         self._apply_grid_density()
         self._apply_app_appearance()
         self._apply_app_name_visibility()
