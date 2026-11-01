@@ -18,7 +18,7 @@ RUNTIME_FILES = (
     "leaf_control.py", "preferences.py", "settings_ui.py", "system_metrics.py",
     "window_layout.py", "layout_rules.py", "app_layout.py", "file_search.py", "gestures.py", "leaf-gestures.lua",
     "workspace_model.py", "select_workspace.py", "move_windows.py", "owner_probe.py",
-    "leaf.css", "README.md", "LICENSE", "ARCHITECTURE.md", "TESTING.md",
+    "leaf.css", "README.md", "preview.png", "LICENSE", "ARCHITECTURE.md", "TESTING.md",
     "install.py", "install-user.sh", "uninstall-user.sh",
 )
 
