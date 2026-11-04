@@ -43,6 +43,9 @@ class WindowLayoutMixin:
             margin = max(0, (width - 1120) // 2)
             self.system_content.set_margin_start(margin)
             self.system_content.set_margin_end(margin)
+        if getattr(self, "system_details", None):
+            self.system_details.set_orientation(
+                Gtk.Orientation.HORIZONTAL if width >= 1040 else Gtk.Orientation.VERTICAL)
         self._fit_app_columns()
         gauge_columns = 1 if width < 640 else 2 if width < 1040 else 3
         if getattr(self, "metrics_grid", None) and self.metrics_grid.get_max_children_per_line() != gauge_columns:
